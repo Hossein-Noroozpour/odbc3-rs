@@ -1,0 +1,8 @@
+[package]
+name = "odbc3"
+version = "0.1.0"
+authors = ["Hossein Noroozpour <hossein.noroozpour@gmail.com>"]
+license = "GPLv1"
+
+[dependencies]
+gtk = { version = "*", features = ["v3_16"] }
