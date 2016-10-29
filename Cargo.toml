@@ -6,3 +6,4 @@ license = "GPLv1"
 
 [dependencies]
 gtk = { version = "*", features = ["v3_16"] }
+chrono = "*"
