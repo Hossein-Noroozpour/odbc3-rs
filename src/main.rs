@@ -6,6 +6,8 @@ pub mod odbc;
 use gtk::prelude::*;
 
 struct AppData {
+    window: gtk::Window,
+    calendar_button: gtk::Button,
     drivers_combo: gtk::ComboBoxText,
     env: odbc::Environment,
     date_start_year: u16,
@@ -109,10 +111,13 @@ fn main() {
     window.set_resizable(false);
     window.set_titlebar(Some(&header));
     window.show_all();
+
     use chrono::Datelike;
     let data = std::sync::Arc::new(
         std::sync::Mutex::new(
             AppData {
+                window: window,
+                calendar_button: b_calendar,
                 drivers_combo: c_drivers,
                 env: env,
                 date_start_year: 0,
@@ -137,9 +142,90 @@ fn main() {
         //        let sql_server = env.get_sql_server().unwrap();
     });
     let cloned_data = data.clone();
-    b_calendar.connect_clicked(move | button | {
+    let tmp_data = data.lock().unwrap();
+    tmp_data.calendar_button.connect_clicked(move | button | {
         let mut data = cloned_data.lock().unwrap();
 
+        let l_from = gtk::Label::new(Some("From"));
+
+        let cal_from = gtk::Calendar::new();
+
+        let l_till = gtk::Label::new(Some("Till"));
+
+        let cal_till = gtk::Calendar::new();
+
+        let b_cancel = gtk::Button::new_with_label("Cancel");
+
+        let b_save = gtk::Button::new_with_label("Save");
+
+        let grid = gtk::Grid::new();
+        grid.set_row_spacing(5);
+        grid.set_column_spacing(5);
+        grid.set_border_width(5);
+        grid.attach(&l_from, 0, 0, 1, 1);
+        grid.attach(&cal_from, 0, 1, 1, 1);
+        grid.attach(&l_till, 1, 0, 1, 1);
+        grid.attach(&cal_till, 1, 1, 1, 1);
+        grid.attach(&b_cancel, 0, 2, 1, 1);
+        grid.attach(&b_save, 1, 2, 1, 1);
+
+        let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
+        dialog.set_title("Set from and till dates");
+        dialog.set_parent(&data.window);
+        dialog.set_modal(true);
+        dialog.add(&grid);
+        dialog.set_resizable(false);
+        dialog.show_all();
+        data.window.set_sensitive(false);
+
+        struct DialogData {
+            data: std::sync::Arc<std::sync::Mutex<AppData>>,
+            dialog: gtk::Window,
+            from: gtk::Calendar,
+            till: gtk::Calendar,
+        }
+
+        let data = std::sync::Arc::new(std::sync::Mutex::new(
+            DialogData {
+                data: cloned_data.clone(),
+                dialog: dialog,
+                from: cal_from,
+                till: cal_till,
+            }
+        ));
+
+        let cloned_data = data.clone();
+        b_cancel.connect_clicked(move |_| {
+            let mut data = cloned_data.lock().unwrap();
+            let mut data2 = data.data.lock().unwrap();
+            data2.window.set_sensitive(true);
+            data.dialog.destroy();
+        });
+
+        let cloned_data = data.clone();
+        b_save.connect_clicked(move |_| {
+            let mut data = cloned_data.lock().unwrap();
+            let mut data2 = data.data.lock().unwrap();
+            data2.window.set_sensitive(true);
+            data2.calendar_button.set_label(
+                &format!(
+                    "From: {:04}-{:02}-{:02} to: {:04}-{:02}-{:02}",
+                    data2.date_start_year, data2.date_start_month, data2.date_start_day,
+                    data2.date_end_year, data2.date_end_month, data2.date_end_day
+                ));
+            data.dialog.destroy();
+        });
+
+        let cloned_data = data.clone();
+        let data = data.lock().unwrap();
+        data.dialog.connect_delete_event(move |_, _| {
+            let mut data = cloned_data.lock().unwrap();
+            let mut data2 = data.data.lock().unwrap();
+            data2.window.set_sensitive(true);
+            Inhibit(false)
+        });
     });
+    let tmp_data = 0;
+    let _ = tmp_data;
     gtk::main();
 }
