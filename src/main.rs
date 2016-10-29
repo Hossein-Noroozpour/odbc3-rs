@@ -108,6 +108,7 @@ fn main() {
         Inhibit(false)
     });
     window.add(&grid);
+    window.set_position(gtk::WindowPosition::Center);
     window.set_resizable(false);
     window.set_titlebar(Some(&header));
     window.show_all();
@@ -142,8 +143,7 @@ fn main() {
         //        let sql_server = env.get_sql_server().unwrap();
     });
     let cloned_data = data.clone();
-    let tmp_data = data.lock().unwrap();
-    tmp_data.calendar_button.connect_clicked(move | button | {
+    data.lock().unwrap().calendar_button.connect_clicked(move | button | {
         let mut data = cloned_data.lock().unwrap();
 
         let l_from = gtk::Label::new(Some("From"));
@@ -171,7 +171,7 @@ fn main() {
 
         let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
         dialog.set_title("Set from and till dates");
-        dialog.set_parent(&data.window);
+        dialog.set_position(gtk::WindowPosition::Center);
         dialog.set_modal(true);
         dialog.add(&grid);
         dialog.set_resizable(false);
@@ -206,6 +206,14 @@ fn main() {
         b_save.connect_clicked(move |_| {
             let mut data = cloned_data.lock().unwrap();
             let mut data2 = data.data.lock().unwrap();
+            let (year, month, day) = data.from.get_date();
+            data2.date_start_year = year as u16;
+            data2.date_start_month = month as u8;
+            data2.date_start_day = day as u8;
+            let (year, month, day) = data.till.get_date();
+            data2.date_end_year = year as u16;
+            data2.date_end_month = month as u8;
+            data2.date_end_day = day as u8;
             data2.window.set_sensitive(true);
             data2.calendar_button.set_label(
                 &format!(
@@ -225,7 +233,47 @@ fn main() {
             Inhibit(false)
         });
     });
-    let tmp_data = 0;
-    let _ = tmp_data;
+
+    let cloned_data = data.clone();
+    b_manage_servers.connect_clicked(move |_| {
+        let mut data = cloned_data.lock().unwrap();
+
+        let list = gtk::ListBox::new();
+        list.set_size_request(200, 400);
+
+        let b_add = gtk::Button::new_with_label("Add");
+        b_add.set_hexpand(false);
+        b_add.set_vexpand(false);
+
+        let b_edit = gtk::Button::new_with_label("Edit");
+        b_edit.set_hexpand(false);
+        b_edit.set_vexpand(false);
+
+        let b_remove = gtk::Button::new_with_label("Remove");
+        b_remove.set_hexpand(false);
+        b_remove.set_vexpand(false);
+
+        let g_buttons = gtk::Grid::new();
+        g_buttons.attach(&b_add, 0, 0, 1, 1);
+        g_buttons.attach(&b_edit, 0, 1, 1, 1);
+        g_buttons.attach(&b_remove, 0, 2, 1, 1);
+        g_buttons.set_hexpand(false);
+        g_buttons.set_vexpand(false);
+
+        let grid = gtk::Grid::new();
+        grid.set_row_spacing(5);
+        grid.set_column_spacing(5);
+        grid.set_border_width(5);
+        grid.attach(&list, 0, 0, 1, 4);
+
+        let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
+        dialog.set_title("Manage servers");
+        dialog.set_position(gtk::WindowPosition::Center);
+        dialog.set_modal(true);
+        dialog.add(&grid);
+        dialog.set_resizable(false);
+        dialog.show_all();
+        data.window.set_sensitive(false);
+    });
     gtk::main();
 }

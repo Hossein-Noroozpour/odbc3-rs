@@ -42,7 +42,7 @@ const SQL_NTS: SQLSMALLINT = -3;
 
 const SQL_DRIVER_NOPROMPT: SQLUSMALLINT = 0;
 
-#[cfg_attr(target_os = "linux", link(name = "vulkan", kind= "dylib"))]
+#[cfg_attr(target_os = "linux", link(name = "odbc", kind= "dylib"))]
 #[cfg_attr(target_os = "windows", link(name = "odbc32", kind= "dylib"))]
 extern "C" {
     fn SQLAllocHandle(
