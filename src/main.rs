@@ -240,6 +240,8 @@ fn main() {
 
         let list = gtk::ListBox::new();
         list.set_size_request(200, 400);
+        b_add.set_hexpand(true);
+        b_add.set_vexpand(true);
 
         let b_add = gtk::Button::new_with_label("Add");
         b_add.set_hexpand(false);
@@ -265,13 +267,13 @@ fn main() {
         grid.set_column_spacing(5);
         grid.set_border_width(5);
         grid.attach(&list, 0, 0, 1, 4);
+        grid.attach(&g_buttons, 1, 0, 1, 1);
 
         let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
         dialog.set_title("Manage servers");
         dialog.set_position(gtk::WindowPosition::Center);
         dialog.set_modal(true);
         dialog.add(&grid);
-        dialog.set_resizable(false);
         dialog.show_all();
         data.window.set_sensitive(false);
     });
