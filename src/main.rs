@@ -237,11 +237,12 @@ fn main() {
     let cloned_data = data.clone();
     b_manage_servers.connect_clicked(move |_| {
         let mut data = cloned_data.lock().unwrap();
+        data.window.set_sensitive(false);
 
         let list = gtk::ListBox::new();
-        list.set_size_request(200, 400);
-        b_add.set_hexpand(true);
-        b_add.set_vexpand(true);
+        list.set_size_request(200, 200);
+        list.set_hexpand(true);
+        list.set_vexpand(true);
 
         let b_add = gtk::Button::new_with_label("Add");
         b_add.set_hexpand(false);
@@ -275,7 +276,90 @@ fn main() {
         dialog.set_modal(true);
         dialog.add(&grid);
         dialog.show_all();
-        data.window.set_sensitive(false);
+
+        struct DialogData {
+            data: std::sync::Arc<std::sync::Mutex<AppData>>,
+            dialog: gtk::Window,
+            list: gtk::ListBox,
+        }
+
+        let data = std::sync::Arc::new(std::sync::Mutex::new(DialogData {
+            data: cloned_data.clone(),
+            dialog: dialog,
+            list: list,
+        }));
+
+        let cloned_data = data.clone();
+        data.lock().unwrap().dialog.connect_delete_event(move |_, _|{
+            let data = cloned_data.lock().unwrap();
+            let data2 = data.data.lock().unwrap();
+            data2.window.set_sensitive(true);
+            Inhibit(false)
+        });
+
+        macro_rules! set_dialog {
+            ($n:tt , $e:tt) => {{
+                let entry = gtk::Entry::new();
+                entry.set_text($e.clone().as_str());
+                entry.set_hexpand(true);
+                entry.set_vexpand(false);
+
+                let button = gtk::Button::new_with_label($n.clone().as_str());
+                button.set_hexpand(false);
+                button.set_vexpand(false);
+
+                let grid = gtk::Grid::new();
+                grid.set_row_spacing(5);
+                grid.set_column_spacing(5);
+                grid.set_border_width(5);
+                grid.attach(&entry, 0, 0, 1, 4);
+                grid.attach(&button, 1, 0, 1, 1);
+
+                let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
+                dialog.set_title(&format!("Try to {}", $n));
+                dialog.set_position(gtk::WindowPosition::Center);
+                dialog.set_modal(true);
+                dialog.set_vexpand(false);
+                dialog.add(&grid);
+                dialog.show_all();
+
+                dialog.connect_delete_event(|_, _| {
+                    gtk::main_quit();
+                    Inhibit(false)
+                });
+
+                button.connect_clicked(move |_| {
+                    $e = match entry.get_text() {
+                        Some(s) => s.to_string(),
+                        None => "".to_string(),
+                    };
+                    if $e.len() == 0 {
+                        let dialog = gtk::MessageDialog::new(
+                            Some(&dialog),
+                            gtk::DIALOG_MODAL,
+                            gtk::MessageType::Error,
+                            gtk::ButtonsType::Close,
+                            "Please check your input befor submit!"
+                        );
+                        dialog.run();
+                        dialog.destroy();
+                    } else {
+                        println!("{:?}", $e);
+                        dialog.destroy();
+                    }
+                });
+
+                gtk::main();
+            }}
+        }
+
+        let cloned_data = data.clone();
+        b_add.connect_clicked(move |_| {
+            let data = cloned_data.lock().unwrap();
+            let mut e: String = "".to_string();
+            let a: String = "Add".to_string();
+            set_dialog!(a, e);
+        });
     });
     gtk::main();
 }
