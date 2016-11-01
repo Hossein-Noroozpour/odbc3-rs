@@ -16,6 +16,7 @@ struct AppData {
     date_end_year: u16,
     date_end_month: u8,
     date_end_day: u8,
+    servers: Vec<String>,
 }
 
 fn main() {
@@ -127,6 +128,7 @@ fn main() {
                 date_end_year: now.year() as u16,
                 date_end_month: now.month() as u8,
                 date_end_day: now.day() as u8,
+                servers: Vec::new(),
             }
         )
     );
@@ -277,6 +279,25 @@ fn main() {
         dialog.add(&grid);
         dialog.show_all();
 
+        fn refresh_list(servers: &Vec<String>, list: &gtk::ListBox) {
+            loop {
+                match list.get_row_at_index(0) {
+                    Some(w) => list.remove(&w),
+                    None => break,
+                }
+            }
+            for server in servers {
+                let w = gtk::Label::new(Some(&server));
+                let r = gtk::ListBoxRow::new();
+                r.add(&w);
+                println!("{}", server);
+                list.insert(&r, 0);
+            }
+            list.show_all();
+        };
+
+        refresh_list(&data.servers, &list);
+
         struct DialogData {
             data: std::sync::Arc<std::sync::Mutex<AppData>>,
             dialog: gtk::Window,
@@ -297,68 +318,73 @@ fn main() {
             Inhibit(false)
         });
 
-        macro_rules! set_dialog {
-            ($n:tt , $e:tt) => {{
-                let entry = gtk::Entry::new();
-                entry.set_text($e.clone().as_str());
-                entry.set_hexpand(true);
-                entry.set_vexpand(false);
+        fn set_dialog(action_name: &String, previous_value: &String) -> String {
+            let entry = gtk::Entry::new();
+            entry.set_text(previous_value.as_str());
+            entry.set_hexpand(true);
+            entry.set_vexpand(false);
 
-                let button = gtk::Button::new_with_label($n.clone().as_str());
-                button.set_hexpand(false);
-                button.set_vexpand(false);
+            let button = gtk::Button::new_with_label(action_name.as_str());
+            button.set_hexpand(false);
+            button.set_vexpand(false);
 
-                let grid = gtk::Grid::new();
-                grid.set_row_spacing(5);
-                grid.set_column_spacing(5);
-                grid.set_border_width(5);
-                grid.attach(&entry, 0, 0, 1, 4);
-                grid.attach(&button, 1, 0, 1, 1);
+            let grid = gtk::Grid::new();
+            grid.set_row_spacing(5);
+            grid.set_column_spacing(5);
+            grid.set_border_width(5);
+            grid.attach(&entry, 0, 0, 1, 4);
+            grid.attach(&button, 1, 0, 1, 1);
 
-                let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
-                dialog.set_title(&format!("Try to {}", $n));
-                dialog.set_position(gtk::WindowPosition::Center);
-                dialog.set_modal(true);
-                dialog.set_vexpand(false);
-                dialog.add(&grid);
-                dialog.show_all();
+            let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
+            dialog.set_title(&format!("Try to {}", action_name));
+            dialog.set_position(gtk::WindowPosition::Center);
+            dialog.set_modal(true);
+            dialog.set_vexpand(false);
+            dialog.add(&grid);
+            dialog.show_all();
 
-                dialog.connect_delete_event(|_, _| {
+            dialog.connect_delete_event(|_, _| {
+                gtk::main_quit();
+                Inhibit(false)
+            });
+            let value = std::sync::Arc::new(std::sync::Mutex::new((*previous_value).clone()));
+            let col_val = value.clone();
+            button.connect_clicked(move |_| {
+                let mut value = col_val.lock().unwrap();
+                *value = match entry.get_text() {
+                    Some(s) => s.to_string(),
+                    None => "".to_string(),
+                };
+                if value.len() == 0 {
+                    let dialog = gtk::MessageDialog::new(
+                        Some(&dialog),
+                        gtk::DIALOG_MODAL,
+                        gtk::MessageType::Error,
+                        gtk::ButtonsType::Close,
+                        "Please check your input befor submit!"
+                    );
+                    dialog.run();
+                    dialog.destroy();
+                } else {
+                    dialog.destroy();
                     gtk::main_quit();
-                    Inhibit(false)
-                });
+                }
+            });
 
-                button.connect_clicked(move |_| {
-                    $e = match entry.get_text() {
-                        Some(s) => s.to_string(),
-                        None => "".to_string(),
-                    };
-                    if $e.len() == 0 {
-                        let dialog = gtk::MessageDialog::new(
-                            Some(&dialog),
-                            gtk::DIALOG_MODAL,
-                            gtk::MessageType::Error,
-                            gtk::ButtonsType::Close,
-                            "Please check your input befor submit!"
-                        );
-                        dialog.run();
-                        dialog.destroy();
-                    } else {
-                        println!("{:?}", $e);
-                        dialog.destroy();
-                    }
-                });
+            gtk::main();
 
-                gtk::main();
-            }}
+            return (*value.lock().unwrap()).clone();
         }
 
         let cloned_data = data.clone();
         b_add.connect_clicked(move |_| {
-            let data = cloned_data.lock().unwrap();
+            let mut data = cloned_data.lock().unwrap();
+            let mut data2 = data.data.lock().unwrap();
             let mut e: String = "".to_string();
             let a: String = "Add".to_string();
-            set_dialog!(a, e);
+            data2.servers.push(set_dialog(&a, &e));
+            refresh_list(&data2.servers, &data.list);
+            println!("{:?}", data2.servers);
         });
     });
     gtk::main();
