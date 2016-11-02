@@ -211,4 +211,7 @@ impl DriverInfo {
     pub fn to_string(&self) -> String {
         format!("{} [{}]", self.name, self.description)
     }
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
 }

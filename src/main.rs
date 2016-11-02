@@ -578,5 +578,22 @@ fn main() {
         gtk::main();
     });
 
+    let cloned_data = data.clone();
+    b_execute.connect_clicked(move |_| {
+        let mut data = cloned_data.lock().unwrap();
+        let driver_index = data.drivers_combo.get_active() as usize;
+        let drivers = data.env.get_drivers_info().expect("Error in getting driver info!");
+        let driver = drivers[driver_index].get_name();
+        let servers_index = data.servers_combo.get_active() as usize;
+        let ref server = data.servers[servers_index];
+        let database_index = data.databases_combo.get_active() as usize;
+        let ref database = data.databases[database_index];
+        let username_index = data.usernames_combo.get_active() as usize;
+        let ref username = data.usernames[username_index];
+        let connection_string = format!("DRIVER={{{}}};SERVER={};DATABASE={};UID={};PWD={};",
+            driver, server, database, username, "123456");
+        println!("{:?}", connection_string);
+    });
+
     gtk::main();
 }
