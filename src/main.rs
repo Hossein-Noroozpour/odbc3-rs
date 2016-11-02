@@ -24,6 +24,7 @@ struct AppData {
     databases: Vec<String>,
     usernames: Vec<String>,
     file_address: String,
+    query: String,
 }
 
 fn main() {
@@ -143,6 +144,7 @@ fn main() {
                 databases: Vec::new(),
                 usernames: Vec::new(),
                 file_address: String::new(),
+                query: String::new(),
             }
         )
     );
@@ -540,6 +542,40 @@ fn main() {
             data.file_address = s_file;
         }
         dialog.destroy();
+    });
+
+    let cloned_data = data.clone();
+    b_set_query.connect_clicked(move |_| {
+        let entry = gtk::TextView::new();
+        entry.set_hexpand(true);
+        entry.set_vexpand(true);
+        let cloned_data = cloned_data.clone();
+        entry.get_buffer().unwrap().connect_changed(move |b| {
+            let query = b.get_text(&b.get_start_iter(), &b.get_end_iter(), false).unwrap();
+            cloned_data.lock().unwrap().query = query;
+        });
+
+        let grid = gtk::Grid::new();
+        grid.set_row_spacing(5);
+        grid.set_column_spacing(5);
+        grid.set_border_width(5);
+        grid.attach(&entry, 0, 0, 1, 1);
+        grid.set_hexpand(true);
+        grid.set_vexpand(true);
+
+        let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
+        dialog.set_position(gtk::WindowPosition::Center);
+        dialog.set_title("Write your query.");
+        dialog.set_modal(true);
+        dialog.set_size_request(400, 200);
+        dialog.add(&grid);
+        dialog.show_all();
+        dialog.connect_delete_event(|_, _|{
+            gtk::main_quit();
+            Inhibit(false)
+        });
+
+        gtk::main();
     });
 
     gtk::main();
