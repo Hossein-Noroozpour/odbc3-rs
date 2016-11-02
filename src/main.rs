@@ -12,6 +12,7 @@ struct AppData {
     servers_combo: gtk::ComboBoxText,
     databases_combo: gtk::ComboBoxText,
     usernames_combo: gtk::ComboBoxText,
+    file_label: gtk::Label,
     env: odbc::Environment,
     date_start_year: u16,
     date_start_month: u8,
@@ -22,6 +23,7 @@ struct AppData {
     servers: Vec<String>,
     databases: Vec<String>,
     usernames: Vec<String>,
+    file_address: String,
 }
 
 fn main() {
@@ -129,6 +131,7 @@ fn main() {
                 servers_combo: c_servers,
                 databases_combo: c_databases,
                 usernames_combo: c_usernames,
+                file_label: l_file,
                 env: env,
                 date_start_year: 0,
                 date_start_month: 0,
@@ -139,6 +142,7 @@ fn main() {
                 servers: Vec::new(),
                 databases: Vec::new(),
                 usernames: Vec::new(),
+                file_address: String::new(),
             }
         )
     );
@@ -511,6 +515,31 @@ fn main() {
     let cloned_data = data.clone();
     b_manage_usernames.connect_clicked(move |_| {
         list_manager(&cloned_data, ListType::Usernames);
+    });
+
+    let cloned_data = data.clone();
+    b_choose_file.connect_clicked(move |_| {
+        let mut data = cloned_data.lock().unwrap();
+        let dialog = gtk::FileChooserDialog::new(
+            Some("Export a XML file"), Some(&data.window), gtk::FileChooserAction::Save);
+        dialog.add_buttons(&[
+            ("Save", gtk::ResponseType::Ok.into()),
+            ("Cancel", gtk::ResponseType::Cancel.into())
+        ]);
+        let filter = gtk::FileFilter::new();
+        filter.add_pattern("*.xml");
+
+        dialog.set_filter(&filter);
+
+        dialog.set_select_multiple(false);
+        if dialog.run() == gtk::ResponseType::Ok.into() {
+            let p_file = dialog.get_filename().expect("Unexpected behavior!");
+            let str_file = p_file.to_str().expect("Unexpected behavior!");
+            let s_file = str_file.to_string();
+            data.file_label.set_text(str_file);
+            data.file_address = s_file;
+        }
+        dialog.destroy();
     });
 
     gtk::main();
