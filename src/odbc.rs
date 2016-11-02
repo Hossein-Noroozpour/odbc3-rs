@@ -54,8 +54,6 @@ extern "C" {
         attribute: SQLINTEGER,
         value: SQLPOINTER,
         string_length: SQLINTEGER) -> SQLRETURN;
-//    fn SQLAllocEnv(environment_handle: *mut SQLHENV) -> SQLRETURN; deprecated
-//    fn SQLAllocConnect(environment_handle: SQLHENV, connection_handle: *mut SQLHDBC) -> SQLRETURN; deprecated
     fn SQLDrivers(
         henv: SQLHENV,
         f_direction: SQLUSMALLINT,
@@ -74,6 +72,10 @@ extern "C" {
         cb_conn_str_out_max: SQLSMALLINT,
         pcb_conn_str_out: *mut SQLSMALLINT,
         f_driver_completion: SQLUSMALLINT) -> SQLRETURN;
+    pub fn SQLExecDirect(
+        statement_handle: SQLHSTMT,
+        statement_text: *mut SQLCHAR,
+        text_length: SQLINTEGER) -> SQLRETURN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -97,6 +99,10 @@ pub struct SqlServer {
     con: SQLHDBC,
     stm: SQLHSTMT,
 }
+
+//pub struct SqlResult {
+//
+//}
 
 impl Environment {
     pub fn new() -> Result<Self, String> {
@@ -214,5 +220,21 @@ impl DriverInfo {
     }
     pub fn get_name(&self) -> String {
         self.name.clone()
+    }
+}
+
+impl SqlServer {
+    pub fn query(&mut self, s: &String) -> Result<u64, String> {
+        let cs = CString::new(s.as_str()).unwrap();
+        let res = SQLExecDirect(self.stmt, cs.as_ptr() as *mut SQLCHAR, SQL_NTSL);
+        // TODO: Add some warning showing maybe a good macro
+        if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO {
+            return Err("Error in executing query!");
+        }
+        let mut columns : SQLSMALLINT = 0;
+        let res = SQLNumResultCols(self.stmt, &mut columns);
+        if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO {
+            return Err("Error in getting number of rows!");
+        }
     }
 }

@@ -591,9 +591,9 @@ fn main() {
         let username_index = data.usernames_combo.get_active() as usize;
         let username = data.usernames[username_index].clone();
         let connection_string = format!("DRIVER={{{}}};SERVER={};DATABASE={};UID={};PWD={};",
-            driver, server, database, username, "123456");
-        let sql = data.env.get_sql_server(
-            &"DRIVER={SQL Server};SERVER=(localhost)\\ITS-H-NOROUZPOU\\SQLEXPRESS;DATABASE=Eris;UID=hossein-noroozpour;PWD=12345;".to_string()).unwrap();
+            driver, server, database, username, "12345");
+        /// Work sample: "DRIVER={SQL Server};SERVER=ITS-H-NOROUZPOU\\SQLEXPRESS;DATABASE=Eris;UID=hossein-noroozpour;PWD=12345;APP=RustDBExporter"
+        let sql = data.env.get_sql_server(&connection_string).unwrap();
         println!("{:?}", connection_string);
     });
 
