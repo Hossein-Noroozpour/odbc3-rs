@@ -585,13 +585,15 @@ fn main() {
         let drivers = data.env.get_drivers_info().expect("Error in getting driver info!");
         let driver = drivers[driver_index].get_name();
         let servers_index = data.servers_combo.get_active() as usize;
-        let ref server = data.servers[servers_index];
+        let server = data.servers[servers_index].clone();
         let database_index = data.databases_combo.get_active() as usize;
-        let ref database = data.databases[database_index];
+        let database = data.databases[database_index].clone();
         let username_index = data.usernames_combo.get_active() as usize;
-        let ref username = data.usernames[username_index];
+        let username = data.usernames[username_index].clone();
         let connection_string = format!("DRIVER={{{}}};SERVER={};DATABASE={};UID={};PWD={};",
             driver, server, database, username, "123456");
+        let sql = data.env.get_sql_server(
+            &"DRIVER={SQL Server};SERVER=(localhost)\\ITS-H-NOROUZPOU\\SQLEXPRESS;DATABASE=Eris;UID=hossein-noroozpour;PWD=12345;".to_string()).unwrap();
         println!("{:?}", connection_string);
     });
 

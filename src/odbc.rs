@@ -158,7 +158,7 @@ impl Environment {
         Ok(infos)
     }
 
-    pub fn get_sql_server(&mut self) -> Result<SqlServer, String> {
+    pub fn get_sql_server(&mut self, connection_string: &String) -> Result<SqlServer, String> {
         let mut connection = unsafe {
             let mut connection: SQLHDBC = std::ptr::null_mut();
             connection
@@ -175,7 +175,8 @@ impl Environment {
         if res != SQL_SUCCESS {
             return Err("Error failed to allocate handle of database connection!".to_string());
         }
-        let connection_string = std::ffi::CString::new("").expect("Unexpected behavior!");
+        let connection_string = std::ffi::CString::new(connection_string.as_str())
+            .expect("Unexpected behavior!");
 
         let res = unsafe {
             SQLDriverConnect(
