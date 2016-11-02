@@ -100,6 +100,10 @@ pub struct SqlServer {
     stm: SQLHSTMT,
 }
 
+struct ColumnDescription {
+
+}
+
 //pub struct SqlResult {
 //
 //}
@@ -233,8 +237,9 @@ impl SqlServer {
         }
         let mut columns : SQLSMALLINT = 0;
         let res = SQLNumResultCols(self.stmt, &mut columns);
-        if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO {
+        if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO || columns < 0 {
             return Err("Error in getting number of rows!");
         }
+        return Ok(columns as u64);
     }
 }
