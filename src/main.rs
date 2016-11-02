@@ -9,6 +9,9 @@ struct AppData {
     window: gtk::Window,
     calendar_button: gtk::Button,
     drivers_combo: gtk::ComboBoxText,
+    servers_combo: gtk::ComboBoxText,
+    databases_combo: gtk::ComboBoxText,
+    usernames_combo: gtk::ComboBoxText,
     env: odbc::Environment,
     date_start_year: u16,
     date_start_month: u8,
@@ -17,6 +20,8 @@ struct AppData {
     date_end_month: u8,
     date_end_day: u8,
     servers: Vec<String>,
+    databases: Vec<String>,
+    usernames: Vec<String>,
 }
 
 fn main() {
@@ -121,6 +126,9 @@ fn main() {
                 window: window,
                 calendar_button: b_calendar,
                 drivers_combo: c_drivers,
+                servers_combo: c_servers,
+                databases_combo: c_databases,
+                usernames_combo: c_usernames,
                 env: env,
                 date_start_year: 0,
                 date_start_month: 0,
@@ -129,6 +137,8 @@ fn main() {
                 date_end_month: now.month() as u8,
                 date_end_day: now.day() as u8,
                 servers: Vec::new(),
+                databases: Vec::new(),
+                usernames: Vec::new(),
             }
         )
     );
@@ -236,8 +246,14 @@ fn main() {
         });
     });
 
-    let cloned_data = data.clone();
-    b_manage_servers.connect_clicked(move |_| {
+    enum ListType {
+        Servers,
+        Databases,
+        Usernames,
+    }
+
+    fn list_manager(cloned_data: &std::sync::Arc<std::sync::Mutex<AppData> >,
+            list_type: ListType) {
         let mut data = cloned_data.lock().unwrap();
         data.window.set_sensitive(false);
 
@@ -273,47 +289,72 @@ fn main() {
         grid.attach(&g_buttons, 1, 0, 1, 1);
 
         let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
-        dialog.set_title("Manage servers");
+        dialog.set_title( match list_type {
+            ListType::Servers => "Manage servers",
+            ListType::Databases => "Manage databases",
+            ListType::Usernames => "Manage usernames",
+        });
         dialog.set_position(gtk::WindowPosition::Center);
         dialog.set_modal(true);
         dialog.add(&grid);
         dialog.show_all();
 
-        fn refresh_list(servers: &Vec<String>, list: &gtk::ListBox) {
+        fn refresh_list(items: &Vec<String>, list: &gtk::ListBox) {
             loop {
                 match list.get_row_at_index(0) {
                     Some(w) => list.remove(&w),
                     None => break,
                 }
             }
-            for server in servers {
-                let w = gtk::Label::new(Some(&server));
+            for item in items {
+                let w = gtk::Label::new(Some(&item));
+                w.set_halign(gtk::Align::Start);
                 let r = gtk::ListBoxRow::new();
                 r.add(&w);
-                println!("{}", server);
-                list.insert(&r, 0);
+                list.prepend(&r);
             }
             list.show_all();
         };
 
-        refresh_list(&data.servers, &list);
+        refresh_list(match list_type {
+            ListType::Servers => &data.servers,
+            ListType::Databases => &data.databases,
+            ListType::Usernames => &data.usernames,
+        }, &list);
 
         struct DialogData {
             data: std::sync::Arc<std::sync::Mutex<AppData>>,
             dialog: gtk::Window,
             list: gtk::ListBox,
+            list_type: ListType,
         }
 
         let data = std::sync::Arc::new(std::sync::Mutex::new(DialogData {
             data: cloned_data.clone(),
             dialog: dialog,
             list: list,
+            list_type: list_type,
         }));
 
         let cloned_data = data.clone();
         data.lock().unwrap().dialog.connect_delete_event(move |_, _|{
             let data = cloned_data.lock().unwrap();
-            let data2 = data.data.lock().unwrap();
+            let mut data2 = data.data.lock().unwrap();
+            let combo = match data.list_type {
+                ListType::Servers => &data2.servers_combo,
+                ListType::Databases => &data2.databases_combo,
+                ListType::Usernames => &data2.usernames_combo,
+            };
+            combo.remove_all();
+            let mut items = match data.list_type {
+                ListType::Servers => &data2.servers,
+                ListType::Databases => &data2.databases,
+                ListType::Usernames => &data2.usernames,
+            };
+            for item in items {
+                combo.append_text(&item);
+            }
+            combo.set_active(0);
             data2.window.set_sensitive(true);
             Inhibit(false)
         });
@@ -327,13 +368,17 @@ fn main() {
             let button = gtk::Button::new_with_label(action_name.as_str());
             button.set_hexpand(false);
             button.set_vexpand(false);
+            button.set_valign(gtk::Align::Center);
+            button.set_halign(gtk::Align::Center);
 
             let grid = gtk::Grid::new();
             grid.set_row_spacing(5);
             grid.set_column_spacing(5);
             grid.set_border_width(5);
-            grid.attach(&entry, 0, 0, 1, 4);
+            grid.attach(&entry, 0, 0, 1, 1);
             grid.attach(&button, 1, 0, 1, 1);
+            grid.set_hexpand(true);
+            grid.set_vexpand(false);
 
             let dialog = gtk::Window::new(gtk::WindowType::Toplevel);
             dialog.set_title(&format!("Try to {}", action_name));
@@ -382,10 +427,91 @@ fn main() {
             let mut data2 = data.data.lock().unwrap();
             let mut e: String = "".to_string();
             let a: String = "Add".to_string();
-            data2.servers.push(set_dialog(&a, &e));
-            refresh_list(&data2.servers, &data.list);
-            println!("{:?}", data2.servers);
+            let mut items = match data.list_type {
+                ListType::Servers => &mut data2.servers,
+                ListType::Databases => &mut data2.databases,
+                ListType::Usernames => &mut data2.usernames,
+            };
+            let s = set_dialog(&a, &e);
+            let s = s.trim();
+            if s.len() != 0 {
+                items.push(s.to_string());
+                refresh_list(&items, &data.list);
+            }
         });
+
+        fn list_get_index(parent: &gtk::Window, list: &gtk::ListBox, items: &Vec<String>)
+                -> Option<usize> {
+            let index = match list.get_selected_row() {
+                Some(r) => r.get_index(),
+                None => {
+                    let dialog = gtk::MessageDialog::new(
+                        Some(parent),
+                        gtk::DIALOG_MODAL,
+                        gtk::MessageType::Error,
+                        gtk::ButtonsType::Close,
+                        "Please select an existing item from list!"
+                    );
+                    dialog.run();
+                    dialog.destroy();
+                    return None;
+                }
+            } + 1;
+            let index = (items.len() as i32 - index) as usize;
+            return Some(index);
+        }
+
+        let cloned_data = data.clone();
+        b_edit.connect_clicked(move |_| {
+            let mut data = cloned_data.lock().unwrap();
+            let mut data2 = data.data.lock().unwrap();
+            let mut items = match data.list_type {
+                ListType::Servers => &mut data2.servers,
+                ListType::Databases => &mut data2.databases,
+                ListType::Usernames => &mut data2.usernames,
+            };
+            let index = match list_get_index(&data.dialog, &data.list, &items) {
+                Some(i) => i,
+                None => return,
+            };
+            let mut e: String = items[index].clone();
+            let a: String = "Edit".to_string();
+            items[index] = set_dialog(&a, &e);
+            refresh_list(&items, &data.list);
+        });
+
+        let cloned_data = data.clone();
+        b_remove.connect_clicked(move |_| {
+            let mut data = cloned_data.lock().unwrap();
+            let mut data2 = data.data.lock().unwrap();
+            let mut items = match data.list_type {
+                ListType::Servers => &mut data2.servers,
+                ListType::Databases => &mut data2.databases,
+                ListType::Usernames => &mut data2.usernames,
+            };
+            let index = match list_get_index(&data.dialog, &data.list, &items) {
+                Some(i) => i,
+                None => return,
+            };
+            items.remove(index);
+            refresh_list(&items, &data.list);
+        });
+    }
+
+    let cloned_data = data.clone();
+    b_manage_servers.connect_clicked(move |_| {
+        list_manager(&cloned_data, ListType::Servers);
     });
+
+    let cloned_data = data.clone();
+    b_manage_databases.connect_clicked(move |_| {
+        list_manager(&cloned_data, ListType::Databases);
+    });
+
+    let cloned_data = data.clone();
+    b_manage_usernames.connect_clicked(move |_| {
+        list_manager(&cloned_data, ListType::Usernames);
+    });
+
     gtk::main();
 }
