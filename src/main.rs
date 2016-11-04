@@ -590,10 +590,9 @@ fn main() {
         let database = data.databases[database_index].clone();
         let username_index = data.usernames_combo.get_active() as usize;
         let username = data.usernames[username_index].clone();
-        let connection_string = format!("DRIVER={{{}}};SERVER={};DATABASE={};UID={};PWD={};",
-            driver, server, database, username, "12345");
+        let connection_string = format!("DRIVER={{{}}};SERVER={};DATABASE={};UID={};PWD={};", driver, server, database, username, "12345");
         /// Work sample: "DRIVER={SQL Server};SERVER=ITS-H-NOROUZPOU\\SQLEXPRESS;DATABASE=Eris;UID=hossein-noroozpour;PWD=12345;APP=RustDBExporter"
-        let sql = data.env.get_sql_server(&connection_string).unwrap();
+        let sql = odbc::Database::new(& mut data.env, &connection_string).unwrap();
         println!("{:?}", connection_string);
     });
 

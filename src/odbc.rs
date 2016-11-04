@@ -1,9 +1,8 @@
 /// This is ODBC 3 Rust interface
 /// Author: Hossein Noroozpour
 /// Email: Hossein.Noroozpour@GMail.com
-
 use std;
-
+use std::collections::HashMap;
 // primary types
 type SQLSMALLINT = ::std::os::raw::c_short;
 type SQLHANDLE = *mut ::std::os::raw::c_void;
@@ -39,6 +38,7 @@ const SQL_ATTR_ODBC_VERSION: SQLINTEGER = 200;
 const SQL_OV_ODBC3: SQLINTEGER = 3;
 
 const SQL_NTS: SQLSMALLINT = -3;
+pub const SQL_NTSL: SQLINTEGER = -3;
 
 const SQL_DRIVER_NOPROMPT: SQLUSMALLINT = 0;
 
@@ -76,11 +76,14 @@ extern "C" {
         statement_handle: SQLHSTMT,
         statement_text: *mut SQLCHAR,
         text_length: SQLINTEGER) -> SQLRETURN;
+    pub fn SQLNumResultCols(
+        statement_handle: SQLHSTMT,
+        column_count: *mut SQLSMALLINT) -> SQLRETURN;
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Environment {
-    env: SQLHENV,
+    environment: SQLHENV,
 }
 
 // TODO: implement Drop
@@ -95,18 +98,20 @@ pub trait Driver {
 
 }
 
-pub struct SqlServer {
-    con: SQLHDBC,
-    stm: SQLHSTMT,
+pub struct Database {
+    connection: SQLHDBC,
+    statement: SQLHSTMT,
+    query: ColumnsDescriptions,
 }
 
 struct ColumnDescription {
-
+    name: String,
 }
 
-//pub struct SqlResult {
-//
-//}
+struct ColumnsDescriptions {
+    descriptions: Vec<ColumnDescription>,
+    name_to_id: HashMap<String, usize>,
+}
 
 impl Environment {
     pub fn new() -> Result<Self, String> {
@@ -127,7 +132,7 @@ impl Environment {
         }
         Ok(
             Environment {
-                env: env
+                environment: env
             }
         )
     }
@@ -141,7 +146,7 @@ impl Environment {
         unsafe {
             loop {
                 let ret = SQLDrivers(
-                    self.env, SQL_FETCH_NEXT,
+                    self.environment, SQL_FETCH_NEXT,
                     name.as_mut_ptr() as *mut SQLCHAR, name.len() as SQLSMALLINT, &mut name_ret,
                     desc.as_mut_ptr() as *mut SQLCHAR, desc.len() as SQLSMALLINT, &mut desc_ret);
                 if ret == SQL_NO_DATA {
@@ -167,8 +172,20 @@ impl Environment {
         }
         Ok(infos)
     }
+}
 
-    pub fn get_sql_server(&mut self, connection_string: &String) -> Result<SqlServer, String> {
+impl DriverInfo {
+    pub fn to_string(&self) -> String {
+        format!("{} [{}]", self.name, self.description)
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+}
+
+impl Database {
+    pub fn new(env: &'a mut Environment, connection_string: &String) -> Result<Self, String> {
         let mut connection = unsafe {
             let mut connection: SQLHDBC = std::ptr::null_mut();
             connection
@@ -180,7 +197,7 @@ impl Environment {
         };
 
         let res = unsafe {
-            SQLAllocHandle(SQL_HANDLE_DBC, self.env, &mut connection as *mut SQLHDBC)
+            SQLAllocHandle(SQL_HANDLE_DBC, env.environment, &mut connection as *mut SQLHDBC)
         };
         if res != SQL_SUCCESS {
             return Err("Error failed to allocate handle of database connection!".to_string());
@@ -210,36 +227,36 @@ impl Environment {
             return Err("Error failed to allocate handle of statement!".to_string());
         }
 
-        return Ok(SqlServer {
-            con: connection,
-            stm: statement,
+        return Ok(Database {
+            environment: env,
+            connection: connection,
+            statement: statement,
+            query: None,
         });
 
     }
 }
 
-impl DriverInfo {
-    pub fn to_string(&self) -> String {
-        format!("{} [{}]", self.name, self.description)
-    }
-    pub fn get_name(&self) -> String {
-        self.name.clone()
-    }
-}
-
-impl SqlServer {
-    pub fn query(&mut self, s: &String) -> Result<u64, String> {
-        let cs = CString::new(s.as_str()).unwrap();
-        let res = SQLExecDirect(self.stmt, cs.as_ptr() as *mut SQLCHAR, SQL_NTSL);
+impl Query {
+    pub fn new(database: &'a mut Database<'a>, s: &String) -> Result<&Self, String> {
+        let cs = std::ffi::CString::new(s.as_str()).unwrap();
+        let res = unsafe {
+            SQLExecDirect(database.statement, cs.as_ptr() as *mut SQLCHAR, SQL_NTSL)
+        };
         // TODO: Add some warning showing maybe a good macro
         if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO {
-            return Err("Error in executing query!");
+            return Err("Error in executing query!".to_string());
         }
         let mut columns : SQLSMALLINT = 0;
-        let res = SQLNumResultCols(self.stmt, &mut columns);
+        let res = unsafe {
+            SQLNumResultCols(database.statement, &mut columns)
+        };
         if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO || columns < 0 {
-            return Err("Error in getting number of rows!");
+            return Err("Error in getting number of rows!".to_string());
         }
-        return Ok(columns as u64);
+        database.query = Some(Query {
+            database: database,
+        });
+        return Ok(database.query.as_ref().unwrap());
     }
 }
