@@ -10,6 +10,7 @@ type SQLUSMALLINT = ::std::os::raw::c_ushort;
 type SQLCHAR = ::std::os::raw::c_uchar;
 type SQLINTEGER = ::std::os::raw::c_int;
 type SQLPOINTER = *mut ::std::os::raw::c_void;
+type SQLULEN = ::std::os::raw::c_ulong;
 // secondary types
 type SQLHENV = SQLHANDLE;
 type SQLHDBC = SQLHANDLE;
@@ -63,7 +64,7 @@ extern "C" {
         sz_driver_attributes: *mut SQLCHAR,
         cb_drvr_attr_max: SQLSMALLINT,
         pcb_drvr_attr: *mut SQLSMALLINT) -> SQLRETURN;
-    pub fn SQLDriverConnect(
+    fn SQLDriverConnect(
         hdbc: SQLHDBC,
         hwnd: SQLHANDLE,
         sz_conn_str_in: *mut SQLCHAR,
@@ -72,13 +73,23 @@ extern "C" {
         cb_conn_str_out_max: SQLSMALLINT,
         pcb_conn_str_out: *mut SQLSMALLINT,
         f_driver_completion: SQLUSMALLINT) -> SQLRETURN;
-    pub fn SQLExecDirect(
+    fn SQLExecDirect(
         statement_handle: SQLHSTMT,
         statement_text: *mut SQLCHAR,
         text_length: SQLINTEGER) -> SQLRETURN;
-    pub fn SQLNumResultCols(
+    fn SQLNumResultCols(
         statement_handle: SQLHSTMT,
         column_count: *mut SQLSMALLINT) -> SQLRETURN;
+    fn SQLDescribeCol(
+        statement_handle: SQLHSTMT,
+        column_number: SQLUSMALLINT,
+        column_name: *mut SQLCHAR,
+        buffer_length: SQLSMALLINT,
+        name_length_ptr: *mut SQLSMALLINT,
+        data_type_ptr: *mut SQLSMALLINT,
+        column_size_ptr: *mut SQLULEN,
+        decimal_digits_ptr: *mut SQLSMALLINT,
+        nullable_ptr: *mut SQLSMALLINT) -> SQLRETURN;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -101,11 +112,15 @@ pub trait Driver {
 pub struct Database {
     connection: SQLHDBC,
     statement: SQLHSTMT,
-    query: ColumnsDescriptions,
+    columns: ColumnsDescriptions,
 }
 
 struct ColumnDescription {
     name: String,
+    data_type: SQLSMALLINT,
+    nullable: SQLSMALLINT,
+    column_size: SQLULEN,
+    decimal_digits: SQLSMALLINT,
 }
 
 struct ColumnsDescriptions {
@@ -185,7 +200,7 @@ impl DriverInfo {
 }
 
 impl Database {
-    pub fn new(env: &'a mut Environment, connection_string: &String) -> Result<Self, String> {
+    pub fn new(env: &mut Environment, connection_string: &String) -> Result<Self, String> {
         let mut connection = unsafe {
             let mut connection: SQLHDBC = std::ptr::null_mut();
             connection
@@ -228,25 +243,39 @@ impl Database {
         }
 
         return Ok(Database {
-            environment: env,
             connection: connection,
             statement: statement,
-            query: None,
+            columns: ColumnsDescriptions::new(),
         });
 
     }
-}
 
-impl Query {
-    pub fn new(database: &'a mut Database<'a>, s: &String) -> Result<&Self, String> {
+    pub fn query(&mut self, s: &String) -> Result<(), String> {
         let cs = std::ffi::CString::new(s.as_str()).unwrap();
         let res = unsafe {
-            SQLExecDirect(database.statement, cs.as_ptr() as *mut SQLCHAR, SQL_NTSL)
+            SQLExecDirect(self.statement, cs.as_ptr() as *mut SQLCHAR, SQL_NTSL)
         };
         // TODO: Add some warning showing maybe a good macro
         if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO {
             return Err("Error in executing query!".to_string());
         }
+        self.columns = match ColumnsDescriptions::build(self) {
+            Ok(c) => c,
+            Err(e) => return Err(e),
+        };
+        return Ok(());
+    }
+}
+
+impl ColumnsDescriptions {
+    fn new() -> Self {
+        ColumnsDescriptions {
+            descriptions: Vec::new(),
+            name_to_id: HashMap::new(),
+        }
+    }
+
+    fn build(database: &mut Database) -> Result<Self, String> {
         let mut columns : SQLSMALLINT = 0;
         let res = unsafe {
             SQLNumResultCols(database.statement, &mut columns)
@@ -254,9 +283,48 @@ impl Query {
         if res != SQL_SUCCESS && res != SQL_SUCCESS_WITH_INFO || columns < 0 {
             return Err("Error in getting number of rows!".to_string());
         }
-        database.query = Some(Query {
-            database: database,
+        let mut descriptions = Vec::new();
+        let mut name_to_id: HashMap<String, usize> = HashMap::new();
+        for i in 0..columns {
+            let mut name_length: SQLSMALLINT = 0;
+            let mut data_type: SQLSMALLINT = 0;
+            let mut nullable: SQLSMALLINT = 0;
+            let mut column_size: SQLULEN = 0;
+            let mut decimal_digits: SQLSMALLINT = 0;
+            let res = unsafe { SQLDescribeCol(
+                database.statement, i as SQLUSMALLINT, SQL_NULL_HANDLE as *mut SQLCHAR, 0,
+                &mut name_length as *mut SQLSMALLINT, &mut data_type as *mut SQLSMALLINT,
+                &mut column_size as *mut SQLULEN, &mut decimal_digits as *mut SQLSMALLINT,
+                &mut nullable as *mut SQLSMALLINT)};
+            if res != SQL_SUCCESS {
+                return Err("Error in getting column name length.".to_string());
+            }
+            let mut name = vec![0 as SQLCHAR; (name_length + 2) as usize];
+            let res = unsafe { SQLDescribeCol(
+                database.statement, i as SQLUSMALLINT, name.as_ptr() as *mut SQLCHAR,
+                name_length + 2, &mut name_length as *mut SQLSMALLINT,
+                &mut data_type as *mut SQLSMALLINT, &mut column_size as *mut SQLULEN,
+                &mut decimal_digits as *mut SQLSMALLINT, &mut nullable as *mut SQLSMALLINT)};
+            if res != SQL_SUCCESS {
+                return Err("Error in getting column name.".to_string());
+            }
+            let name = unsafe {
+                std::ffi::CStr::from_ptr(name.as_ptr() as *mut i8).to_string_lossy().into_owned()
+            };
+            descriptions.push(
+                ColumnDescription {
+                    name: name.clone(),
+                    data_type: data_type, // TODO define my own way of type description
+                    nullable: nullable,
+                    column_size: column_size,
+                    decimal_digits: decimal_digits,
+                }
+            );
+            name_to_id.insert(name, i as usize);
+        }
+        return Ok(ColumnsDescriptions {
+            descriptions: descriptions,
+            name_to_id: name_to_id,
         });
-        return Ok(database.query.as_ref().unwrap());
     }
 }
