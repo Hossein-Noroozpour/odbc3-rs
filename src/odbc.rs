@@ -3,6 +3,7 @@
 /// Email: Hossein.Noroozpour@GMail.com
 use std;
 use std::collections::HashMap;
+use chrono;
 // primary types
 type SQLSMALLINT = ::std::os::raw::c_short;
 type SQLHANDLE = *mut ::std::os::raw::c_void;
@@ -92,6 +93,10 @@ extern "C" {
         nullable_ptr: *mut SQLSMALLINT) -> SQLRETURN;
 }
 
+//macro_rules! error_returner {
+//    ($s:expr) => (return Err(format!("Error in file {}, in line {}: {:?}", file!(), line!(), $s))),
+//}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Environment {
     environment: SQLHENV,
@@ -126,6 +131,15 @@ struct ColumnDescription {
 struct ColumnsDescriptions {
     descriptions: Vec<ColumnDescription>,
     name_to_id: HashMap<String, usize>,
+}
+
+#[derive(Debug, Clone)]
+enum ReadType {
+    I(i64),
+    U(u64),
+    S(String),
+    R(f64),
+    D(chrono::DateTime),
 }
 
 impl Environment {
@@ -264,6 +278,13 @@ impl Database {
             Err(e) => return Err(e),
         };
         return Ok(());
+    }
+
+    pub fn next_row(&mut self) -> Result<(), String> {
+        let res = unsafe { SQLFetch(self.statement) };
+        if res != SQL_SUCCESS {
+            error_returner(format!("Can't fetch the data res == {}", res));
+        }
     }
 }
 

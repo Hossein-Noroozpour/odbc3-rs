@@ -593,6 +593,46 @@ fn main() {
         let connection_string = format!("DRIVER={{{}}};SERVER={};DATABASE={};UID={};PWD={};", driver, server, database, username, "12345");
         /// Work sample: "DRIVER={SQL Server};SERVER=ITS-H-NOROUZPOU\\SQLEXPRESS;DATABASE=Eris;UID=hossein-noroozpour;PWD=12345;APP=RustDBExporter"
         let sql = odbc::Database::new(& mut data.env, &connection_string).unwrap();
+        for i in 0..679 {
+//            println!("<worked_city>{}</worked_city>
+//					<allocated_area_status>01</allocated_area_status>
+//					<type_of_contract/>
+//					<last_month_salary>N</last_month_salary>
+//					<work_end_date/>
+//					<employee_status>01</employee_status>
+//					<salary_payment_86>Y</salary_payment_86>
+//					<number_real_worked_month>1</number_real_worked_month>
+//					<paid_type>01</paid_type>
+//					<currency_type/>
+//					<exchange_rate/>
+//					<sum_ongoing_gross_salary_rial>1000000000</sum_ongoing_gross_salary_rial>
+//					<sum_ongoing_gross_salary_foreign/>
+//					<sum_ongoing_gross_salary/>
+//					<outstanding_payments_received_rial/>
+//					<outstanding_payments_received_foreign/>
+//					<outstanding_payments_received/>
+//					<total_taxable_ongoing_gross_cash_salary/>
+//					<continous_taxable_income_year_to_previous_month>0</continous_taxable_income_year_to_previous_month>
+//					<total_taxable_ongoing_cash_non_cash/>
+//					<housing_flag>01</housing_flag>
+//					<housing_benefit/>
+//					<housing_expense_salary_rial/>
+//					<housing_expense_salary_foreign/>
+//					<housing_expense_salary/>
+//					<housing_expenses_previous_month>0</housing_expenses_previous_month>
+//					<vehicle_flag>01</vehicle_flag>
+//					<vehicle_benefit/>
+//					<vehicle_expense_salary_rial/>
+//					<vehicle_expense_salary_foreign/>
+//					<vehicle_expense_salary/>
+//					<vehicle_expenses_previous_month>0</vehicle_expenses_previous_month>
+//					<net_housg_vehicle_benefit/>
+//					<non_cash_payments_rial/>
+//					<non_cash_payments_foreign/>
+//					<non_cash_payments/>
+//					<non_cash_year_to_last_month>0</non_cash_year_to_last_month>
+//					<total_non_cash_benefits/>")
+        }
         println!("{:?}", connection_string);
     });
 
